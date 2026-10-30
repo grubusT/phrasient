@@ -1,3 +1,55 @@
+# Phases 4-6: Pin detail, move cards, pinbook
+
+Spec: `~/.claude/plans/quiet-dazzling-candle.md` (Phases 4-6, Screens and components). Reasons: `docs/decisions.md` (Phrases, Sheet).
+
+Already in place: `PIN_RULES`/`MOVE_RULES`, `phrasesForPin`/`phrasesForMove` with tests, `pinned_phrases` table and queries, `PhraseRow` with a pin toggle, a Pinbook tab and a search screen (neither reachable from anywhere yet), a show-driver route nothing opens.
+
+## Plan
+
+### Pure logic (tested under `node --test`)
+- [x] `previousPin(pins, pinId)` in `src/lib/trip.ts`: the pin before it in trip order, crossing days. A move is derived from this, never stored.
+- [x] `src/lib/driverCard.ts`: `driverCardText(pin)` returns the official local-script name/address, or null. Never falls back to `display_name` or English (the current show-driver screen does; that breaks a product rule and gets fixed here).
+- [x] `floatPinned(phrases, pinnedIds)` in `src/phrases/resolve.ts`: splits a surface's phrases into pinned matches (shown first) and the rest, no duplicates.
+
+### Phase 4: pin detail in the sheet
+- [x] `TripSheet` gains a detail view: `{ pin } | { move to pin } | null`. Row tap and peek-card tap open it and snap to half; a back button and Android back return to the list. Marker tap still only selects (unchanged).
+- [x] `components/detail/PinDetailView`: number, display name, stop type, Edit; `AddressCard` (English caption above local-script name and address); `ShowDriverButton`; `UnreviewedPackWarning`; pinned matches then suggestions as `PhraseRow`s. Pins in a country without a pack say so instead of showing phrases. Renders in `BottomSheetScrollView`.
+- [x] Phrase tap opens new `phrase/[languageCode]/[phraseId]` full screen. Show-driver and it share a `HoldUpScreen` (black ground, driver type, keep-awake, labelled 44pt close). Show-driver loses its `mode=phrase` branch.
+- [x] Driver card with no official text: button disabled with "Temporarily unavailable" (your copy), plus Find on map for unplaced pins.
+- [x] `pin/[pinId]/edit` modal: rename (display name only), stop type, day, delete with confirmation. Nothing can edit or delete a pin today, and the old stop screen had both.
+
+### Phase 5: move cards
+- [x] `MoveRow`: a slim "From 3. Hotel" line drawn above each pin that has a previous pin, inside the pin's list cell. Hidden while a drag is in progress. Keeping it inside the cell leaves `sheetRows`/`dropTarget` and the a11y step actions untouched.
+- [x] `components/detail/MoveCard`: "From A to B", the destination's driver card, then `phrasesForMove(from, to)` in the destination's language, pinned matches floated first. No routes, times or modes.
+
+### Phase 6: pinbook
+- [x] `usePinnedPhrases(languageCode)` hook: ids + toggle, shared by pin detail, move card, search and pinbook.
+- [x] Pinbook tab: phrase tap opens full screen, unreviewed warning, a "Search phrases" button opening search as a modal (gets a native header; register it in the root stack).
+- [x] Search: warning, full-screen on tap.
+- [x] `languageName` on `SUPPORTED_COUNTRIES` so the warning says "Mandarin", not "zh-CN".
+
+### Docs
+- [x] `docs/decisions.md`: move line lives in the pin cell; floating means pinned ∩ this surface; driver card never falls back.
+
+### Verify
+- [x] Tests for the three pure functions; `npm test`, both typechecks, `npx expo lint`, `npx expo export --platform ios`
+- [ ] Not verifiable by me: anything on device (sheet content swap, snaps, full screen, airplane mode)
+
+## Review
+
+Done 30 Oct 2026, pending device check. 70 tests pass (5 new); both typechecks, `npx expo lint` and `npx expo export --platform ios` are clean.
+
+Changed from the plan:
+- Pinbook and search language pills now use the shared `PillPicker` (they had hand-rolled copies at under 44pt).
+- Search became a modal with a native header, so it has a way back; it had none.
+- Show-driver's English caption is kept small under the local text, for the user, not the driver.
+
+Not verified (needs a dev build): sheet content swap and snap to half, Android back, the move line hiding mid-drag, full-screen phrase and driver screens, edit and delete, airplane mode.
+
+Known gaps:
+- Selecting a pin, tapping empty map, then tapping the same marker does not reopen its detail; only row or peek-card taps open it. Intended, but worth checking it feels right.
+- Pins in a country without a pack show "No phrases for X yet" and no phrases.
+
 # Phase 3: Sheet with pin list
 
 Spec: `~/.claude/plans/quiet-dazzling-candle.md` (Phase 3, Screens and components). Reasons: `docs/decisions.md`.

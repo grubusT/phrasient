@@ -41,6 +41,10 @@ export default function RootLayout() {
               options={{ ...modalHeader, presentation: 'modal', title: 'Edit pin' }}
             />
             <Stack.Screen
+              name="search"
+              options={{ ...modalHeader, presentation: 'modal', title: 'Search phrases' }}
+            />
+            <Stack.Screen
               name="add-pin/index"
               options={{ ...modalHeader, presentation: 'modal', title: 'Add a pin' }}
             />
