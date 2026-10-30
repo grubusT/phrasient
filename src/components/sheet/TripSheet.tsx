@@ -8,11 +8,13 @@ import BottomSheet, {
 import ReorderableList, { type ReorderableListReorderEvent } from 'react-native-reorderable-list';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { Pin, Trip } from '../../db/types';
-import { currentOrNextPin, dropTarget, sheetRows, type SheetRow } from '../../lib/trip';
+import { currentOrNextPin, dropTarget, previousPin, sheetRows, type SheetRow } from '../../lib/trip';
 import { formatDisplayDate, nowHHMM, todayISO } from '../../lib/date';
 import { PeekCard } from './PeekCard';
 import { PinRow } from './PinRow';
+import { MoveRow } from './MoveRow';
 import { PinDetailView } from '../detail/PinDetailView';
+import { MoveCard } from '../detail/MoveCard';
 import { color, radius, space, type } from '../../theme';
 
 interface Props {
@@ -27,8 +29,11 @@ interface Props {
   onGoToTrips: () => void;
 }
 
-/** What the sheet shows instead of the day list: a pin's detail. */
-type Detail = { pinId: number };
+/**
+ * What the sheet shows instead of the day list: a pin's detail, or the move
+ * into a pin from the one before it. Both are keyed by the pin they end at.
+ */
+type Detail = { kind: 'pin' | 'move'; pinId: number };
 
 // @gorhom/bottom-sheet's default handle height; the peek snap is this plus the card.
 const HANDLE_HEIGHT = 24;
@@ -36,7 +41,8 @@ const HANDLE_HEIGHT = 24;
 /**
  * The map's bottom sheet. Peek shows one pin; half and full show the trip day
  * by day. Pins are reordered, and moved between days, by dragging them past
- * the day headers. Tapping a pin swaps the list for its detail.
+ * the day headers. Tapping a pin or the move above it swaps the list for that
+ * pin's detail or move card.
  */
 export function TripSheet({
   trip,
@@ -75,11 +81,12 @@ export function TripSheet({
   // Adjusted during render rather than in an effect, so it never paints stale.
   if (detail && detail.pinId !== selectedPinId) setDetail(null);
   const detailPin = detail ? pins.find((p) => p.id === detail.pinId) : undefined;
+  const detailFrom = detail?.kind === 'move' && detailPin ? previousPin(pins, detailPin.id) : null;
 
   const openDetail = useCallback(
-    (pin: Pin) => {
+    (kind: Detail['kind'], pin: Pin) => {
       onSelectPin(pin);
-      setDetail({ pinId: pin.id });
+      setDetail({ kind, pinId: pin.id });
       sheet.current?.snapToIndex(1);
     },
     [onSelectPin]
@@ -124,18 +131,31 @@ export function TripSheet({
         </View>
       );
     }
+    // The move line lives inside the pin's cell, not as a row of its own, so
+    // drag targets and step actions count only days and pins. It is hidden
+    // mid-drag because it would travel with the pin and name the wrong origin.
+    const from = dragging ? null : previousPin(pins, item.pin.id);
     return (
-      <PinRow
-        pin={item.pin}
-        number={numbers.get(item.pin.id) ?? 0}
-        selected={item.pin.id === selectedPinId}
-        onPress={() => openDetail(item.pin)}
-        onStep={(direction) => {
-          const to = index + direction;
-          if (to >= 0 && to < rows.length) move(index, to);
-        }}
-        onFindOnMap={() => onFindOnMap(item.pin)}
-      />
+      <View>
+        {from && (
+          <MoveRow
+            from={from}
+            fromNumber={numbers.get(from.id) ?? 0}
+            onPress={() => openDetail('move', item.pin)}
+          />
+        )}
+        <PinRow
+          pin={item.pin}
+          number={numbers.get(item.pin.id) ?? 0}
+          selected={item.pin.id === selectedPinId}
+          onPress={() => openDetail('pin', item.pin)}
+          onStep={(direction) => {
+            const to = index + direction;
+            if (to >= 0 && to < rows.length) move(index, to);
+          }}
+          onFindOnMap={() => onFindOnMap(item.pin)}
+        />
+      </View>
     );
   };
 
@@ -168,19 +188,28 @@ export function TripSheet({
           >
             <Text style={styles.backText}>‹ {trip.name}</Text>
           </Pressable>
-          <PinDetailView
-            pin={detailPin}
-            number={numbers.get(detailPin.id) ?? 0}
-            onEdit={() => onEditPin(detailPin)}
-            onFindOnMap={() => onFindOnMap(detailPin)}
-          />
+          {detail?.kind === 'move' && detailFrom ? (
+            <MoveCard
+              from={detailFrom}
+              to={detailPin}
+              fromNumber={numbers.get(detailFrom.id) ?? 0}
+              toNumber={numbers.get(detailPin.id) ?? 0}
+            />
+          ) : (
+            <PinDetailView
+              pin={detailPin}
+              number={numbers.get(detailPin.id) ?? 0}
+              onEdit={() => onEditPin(detailPin)}
+              onFindOnMap={() => onFindOnMap(detailPin)}
+            />
+          )}
         </BottomSheetScrollView>
       ) : (
         <View style={styles.content}>
           <Pressable
             style={styles.peek}
             onLayout={(e) => setPeekHeight(e.nativeEvent.layout.height)}
-            onPress={peekPin ? () => openDetail(peekPin) : undefined}
+            onPress={peekPin ? () => openDetail('pin', peekPin) : undefined}
             disabled={!peekPin}
             accessibilityRole="button"
             accessibilityHint="Opens this place's phrases"

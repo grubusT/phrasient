@@ -178,3 +178,13 @@ export function dropTarget(
   const firstDay = after.find((r) => r.kind === 'day');
   return firstDay?.kind === 'day' ? { pinId: dragged.pin.id, day: firstDay.date, index: 0 } : null;
 }
+
+/**
+ * The pin before this one in trip order, crossing day boundaries. A move is the
+ * gap between the two and is never stored, so this is its only definition.
+ */
+export function previousPin(pins: Pin[], pinId: number): Pin | null {
+  const ordered = groupPinsByDay(pins).flatMap((d) => d.pins);
+  const i = ordered.findIndex((p) => p.id === pinId);
+  return i > 0 ? ordered[i - 1] : null;
+}

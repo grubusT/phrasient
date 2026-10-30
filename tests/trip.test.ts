@@ -8,6 +8,7 @@ import {
   groupPinsByDay,
   pickActiveTrip,
   pinBounds,
+  previousPin,
   sheetRows,
   tripDays,
   tripOrderNumbers,
@@ -220,4 +221,16 @@ test('a drop target applied as a move gives the order the list showed', () => {
     ['2026-11-03', [[1, 0], [5, 1], [2, 2], [3, 3]]],
     ['2026-11-04', [[4, 0]]],
   ]);
+});
+
+test('the previous pin follows trip order and crosses into the day before', () => {
+  const pins = [
+    pin({ id: 3, day_date: '2026-11-04', order_index: 0 }),
+    pin({ id: 2, day_date: '2026-11-03', order_index: 1 }),
+    pin({ id: 1, day_date: '2026-11-03', order_index: 0 }),
+  ];
+  assert.equal(previousPin(pins, 1), null);
+  assert.equal(previousPin(pins, 2)?.id, 1);
+  assert.equal(previousPin(pins, 3)?.id, 2);
+  assert.equal(previousPin(pins, 99), null);
 });

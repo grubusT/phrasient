@@ -183,7 +183,14 @@ move, since drag is not accessible.
 **Tapping a marker does not snap the sheet.** The peek card already shows the
 selected pin; raising the sheet would cover the map the user just tapped.
 
-**Pin detail replaces the list inside the same sheet.** Opening
+**A move is drawn inside the destination pin's list cell, not as its own row.**
+`MoveRow` ("From 3. Hotel") sits above each pin that has a previous pin, crossing
+days. As a separate row it would break `dropTarget`'s index count and the
+screen-reader step actions, which both assume rows are only days and pins. It is
+hidden while a drag is in progress, since it would travel with the dragged pin
+and name the wrong origin. `previousPin` is the only definition of a move.
+
+**Pin detail and move cards replace the list inside the same sheet.** Opening
 one snaps to half; a back button and Android back return to the list. Selecting
 a different pin on the map, or tapping empty map, closes it. The detail is keyed
 by its pin, so editing or deleting the pin from the edit modal shows the change
