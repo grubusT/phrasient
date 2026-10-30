@@ -2,6 +2,7 @@ export interface CountryOption {
   countryCode: string;
   countryName: string;
   languageCode: string;
+  languageName: string;
 }
 
 /**
@@ -10,8 +11,8 @@ export interface CountryOption {
  * per-leg language the user picks by hand.
  */
 export const SUPPORTED_COUNTRIES: CountryOption[] = [
-  { countryCode: 'CN', countryName: 'China', languageCode: 'zh-CN' },
-  { countryCode: 'VN', countryName: 'Vietnam', languageCode: 'vi' },
+  { countryCode: 'CN', countryName: 'China', languageCode: 'zh-CN', languageName: 'Mandarin' },
+  { countryCode: 'VN', countryName: 'Vietnam', languageCode: 'vi', languageName: 'Vietnamese' },
 ];
 
 const BY_COUNTRY = new Map(SUPPORTED_COUNTRIES.map((c) => [c.countryCode, c]));
@@ -23,4 +24,8 @@ export function languageForCountry(countryCode: string): string | null {
 
 export function countryName(countryCode: string): string {
   return BY_COUNTRY.get(countryCode.toUpperCase())?.countryName ?? countryCode;
+}
+
+export function languageName(languageCode: string): string {
+  return SUPPORTED_COUNTRIES.find((c) => c.languageCode === languageCode)?.languageName ?? languageCode;
 }

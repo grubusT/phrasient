@@ -1,6 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
-import BottomSheet, { BottomSheetView, useBottomSheetScrollableCreator } from '@gorhom/bottom-sheet';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BackHandler, Pressable, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
+import BottomSheet, {
+  BottomSheetScrollView,
+  BottomSheetView,
+  useBottomSheetScrollableCreator,
+} from '@gorhom/bottom-sheet';
 import ReorderableList, { type ReorderableListReorderEvent } from 'react-native-reorderable-list';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { Pin, Trip } from '../../db/types';
@@ -8,6 +12,7 @@ import { currentOrNextPin, dropTarget, sheetRows, type SheetRow } from '../../li
 import { formatDisplayDate, nowHHMM, todayISO } from '../../lib/date';
 import { PeekCard } from './PeekCard';
 import { PinRow } from './PinRow';
+import { PinDetailView } from '../detail/PinDetailView';
 import { color, radius, space, type } from '../../theme';
 
 interface Props {
@@ -18,8 +23,12 @@ interface Props {
   onSelectPin: (pin: Pin) => void;
   onMovePin: (pinId: number, day: string, index: number) => void;
   onFindOnMap: (pin: Pin) => void;
+  onEditPin: (pin: Pin) => void;
   onGoToTrips: () => void;
 }
+
+/** What the sheet shows instead of the day list: a pin's detail. */
+type Detail = { pinId: number };
 
 // @gorhom/bottom-sheet's default handle height; the peek snap is this plus the card.
 const HANDLE_HEIGHT = 24;
@@ -27,7 +36,7 @@ const HANDLE_HEIGHT = 24;
 /**
  * The map's bottom sheet. Peek shows one pin; half and full show the trip day
  * by day. Pins are reordered, and moved between days, by dragging them past
- * the day headers.
+ * the day headers. Tapping a pin swaps the list for its detail.
  */
 export function TripSheet({
   trip,
@@ -37,10 +46,13 @@ export function TripSheet({
   onSelectPin,
   onMovePin,
   onFindOnMap,
+  onEditPin,
   onGoToTrips,
 }: Props) {
+  const sheet = useRef<BottomSheet>(null);
   const [peekHeight, setPeekHeight] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [detail, setDetail] = useState<Detail | null>(null);
   const snapPoints = useMemo(
     () => [Math.max(peekHeight, space.xxl * 2) + HANDLE_HEIGHT, '50%', '92%'],
     [peekHeight]
@@ -58,6 +70,30 @@ export function TripSheet({
   const peekCaption = peekPin
     ? `Day ${dayNumbers.get(peekPin.day_date) ?? ''}${peekPin.lat === null ? ', not on the map yet' : ''}`
     : '';
+
+  // Selecting another pin on the map, or tapping empty map, closes the detail.
+  // Adjusted during render rather than in an effect, so it never paints stale.
+  if (detail && detail.pinId !== selectedPinId) setDetail(null);
+  const detailPin = detail ? pins.find((p) => p.id === detail.pinId) : undefined;
+
+  const openDetail = useCallback(
+    (pin: Pin) => {
+      onSelectPin(pin);
+      setDetail({ pinId: pin.id });
+      sheet.current?.snapToIndex(1);
+    },
+    [onSelectPin]
+  );
+
+  // Android back leaves the detail before it leaves the screen.
+  useEffect(() => {
+    if (!detail) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setDetail(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [detail]);
 
   const move = useCallback(
     (from: number, to: number) => {
@@ -93,7 +129,7 @@ export function TripSheet({
         pin={item.pin}
         number={numbers.get(item.pin.id) ?? 0}
         selected={item.pin.id === selectedPinId}
-        onPress={() => onSelectPin(item.pin)}
+        onPress={() => openDetail(item.pin)}
         onStep={(direction) => {
           const to = index + direction;
           if (to >= 0 && to < rows.length) move(index, to);
@@ -105,6 +141,7 @@ export function TripSheet({
 
   return (
     <BottomSheet
+      ref={sheet}
       index={0}
       snapPoints={snapPoints}
       enableDynamicSizing={false}
@@ -121,15 +158,39 @@ export function TripSheet({
             <Text style={styles.actionText}>Go to Trips</Text>
           </Pressable>
         </BottomSheetView>
+      ) : detailPin ? (
+        <BottomSheetScrollView contentContainerStyle={styles.detail}>
+          <Pressable
+            style={styles.back}
+            onPress={() => setDetail(null)}
+            accessibilityRole="button"
+            accessibilityLabel={`Back to ${trip.name}`}
+          >
+            <Text style={styles.backText}>‹ {trip.name}</Text>
+          </Pressable>
+          <PinDetailView
+            pin={detailPin}
+            number={numbers.get(detailPin.id) ?? 0}
+            onEdit={() => onEditPin(detailPin)}
+            onFindOnMap={() => onFindOnMap(detailPin)}
+          />
+        </BottomSheetScrollView>
       ) : (
         <View style={styles.content}>
-          <View style={styles.peek} onLayout={(e) => setPeekHeight(e.nativeEvent.layout.height)}>
+          <Pressable
+            style={styles.peek}
+            onLayout={(e) => setPeekHeight(e.nativeEvent.layout.height)}
+            onPress={peekPin ? () => openDetail(peekPin) : undefined}
+            disabled={!peekPin}
+            accessibilityRole="button"
+            accessibilityHint="Opens this place's phrases"
+          >
             <PeekCard
               pin={peekPin}
               number={peekPin ? numbers.get(peekPin.id) ?? 0 : 0}
               caption={peekCaption}
             />
-          </View>
+          </Pressable>
           <ReorderableList
             data={rows}
             keyExtractor={(row) => (row.kind === 'day' ? `day-${row.date}` : `pin-${row.pin.id}`)}
@@ -158,6 +219,9 @@ const styles = StyleSheet.create({
     borderBottomColor: color.hairline,
   },
   list: { paddingHorizontal: space.sm, paddingBottom: space.xxl },
+  detail: { paddingHorizontal: space.lg, paddingBottom: space.xxl, gap: space.md },
+  back: { minHeight: space.xxl + space.md, justifyContent: 'center', alignSelf: 'flex-start' },
+  backText: { ...type.body, color: color.muted },
   tripName: {
     ...type.title,
     color: color.ink,

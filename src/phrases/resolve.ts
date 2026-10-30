@@ -52,3 +52,18 @@ export function phrasesForMove(pack: PhrasePack, from: StopType, to: StopType): 
   const shownAtDestination = new Set(phrasesForPin(pack, to).map((p) => p.id));
   return resolve(pack, matchMoveRule(from, to)).filter((p) => !shownAtDestination.has(p.id));
 }
+
+/**
+ * Splits a surface's phrases into the ones already in the pinbook, shown first,
+ * and the rest. Only phrases that belong on this surface are floated; the
+ * pinbook's other phrases stay in the pinbook.
+ */
+export function floatPinned(
+  phrases: Phrase[],
+  pinnedIds: ReadonlySet<string>
+): { pinned: Phrase[]; rest: Phrase[] } {
+  return {
+    pinned: phrases.filter((p) => pinnedIds.has(p.id)),
+    rest: phrases.filter((p) => !pinnedIds.has(p.id)),
+  };
+}

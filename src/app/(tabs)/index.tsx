@@ -122,6 +122,7 @@ export default function MapScreen() {
         onFindOnMap={(pin) =>
           router.push({ pathname: '/add-pin', params: { tripId: pin.trip_id, pinId: pin.id } })
         }
+        onEditPin={(pin) => router.push({ pathname: '/pin/[pinId]/edit', params: { pinId: pin.id } })}
         onGoToTrips={() => router.push('/trips')}
       />
     </View>

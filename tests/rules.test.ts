@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { MOVE_RULES, PIN_RULES } from '../src/phrases/rules.ts';
-import { matchMoveRule, phraseSlug, phrasesForMove, phrasesForPin } from '../src/phrases/resolve.ts';
+import { floatPinned, matchMoveRule, phraseSlug, phrasesForMove, phrasesForPin } from '../src/phrases/resolve.ts';
 import type { PhrasePack } from '../src/phrases/types.ts';
 import type { StopType } from '../src/db/types.ts';
 
@@ -144,4 +144,16 @@ test('phraseSlug strips the language prefix', () => {
   assert.equal(phraseSlug('zh-transport-05'), 'transport-05');
   assert.equal(phraseSlug('vi-transport-05'), 'transport-05');
   assert.equal(phraseSlug('essentials-01'), 'essentials-01');
+});
+
+test('pinned phrases float above the rest without repeating, and only if they belong here', () => {
+  const pack = PACKS[0];
+  const here = phrasesForPin(pack, 'restaurant');
+  const elsewhere = pack.phrases.find((p) => !here.includes(p))!;
+  const pinnedIds = new Set([here[2].id, elsewhere.id]);
+
+  const { pinned, rest } = floatPinned(here, pinnedIds);
+  assert.deepEqual(pinned.map((p) => p.id), [here[2].id]);
+  assert.equal(rest.length, here.length - 1);
+  assert.ok(!rest.some((p) => pinnedIds.has(p.id)));
 });

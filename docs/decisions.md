@@ -61,6 +61,12 @@ desk to call a taxi belongs to both the hotel pin and the hotel→airport move.
 Only the *destination's* phrases must not be duplicated, since the move card sits
 directly above them. This is why the subtraction is one-directional.
 
+**"Floated to the top" means pinned phrases that belong on this surface.**
+Pin detail and move cards show phrases already in the pinbook first, under
+"From your pinbook", then the rest. A pinned phrase that the rules do not put on
+this surface is not pulled in; it stays in the pinbook tab. `floatPinned` does
+the split and never duplicates a phrase.
+
 **`attraction`, `outdoors` and `other` fall back to essentials alone.** The packs
 carry no phrases specific to them yet. Borrowing an unrelated category to pad the
 screen would be worse than a short one. Fix by writing phrases, not by editing
@@ -176,6 +182,21 @@ move, since drag is not accessible.
 
 **Tapping a marker does not snap the sheet.** The peek card already shows the
 selected pin; raising the sheet would cover the map the user just tapped.
+
+**Pin detail replaces the list inside the same sheet.** Opening
+one snaps to half; a back button and Android back return to the list. Selecting
+a different pin on the map, or tapping empty map, closes it. The detail is keyed
+by its pin, so editing or deleting the pin from the edit modal shows the change
+(or drops back to the list) when the map screen reloads on focus.
+
+## Driver card
+
+**The driver card never falls back to the display name or English.**
+`driverCardText` returns the official local-script address and name, or null.
+The pre-redesign screen fell back to `display_name`, which hands a driver a
+nickname they cannot use. With no local text the button reads "Temporarily
+unavailable" and is disabled (Ryan's copy). A test asserts the fallback cannot
+return.
 
 ## Design
 
