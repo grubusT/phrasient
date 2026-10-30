@@ -2,12 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyMove,
+  connectorSegments,
   currentOrNextPin,
   dropTarget,
   defaultDayForNewPin,
   groupPinsByDay,
   pickActiveTrip,
   pinBounds,
+  previousPin,
   sheetRows,
   tripDays,
   tripOrderNumbers,
@@ -220,4 +222,31 @@ test('a drop target applied as a move gives the order the list showed', () => {
     ['2026-11-03', [[1, 0], [5, 1], [2, 2], [3, 3]]],
     ['2026-11-04', [[4, 0]]],
   ]);
+});
+
+test('the previous pin follows trip order and crosses into the day before', () => {
+  const pins = [
+    pin({ id: 3, day_date: '2026-11-04', order_index: 0 }),
+    pin({ id: 2, day_date: '2026-11-03', order_index: 1 }),
+    pin({ id: 1, day_date: '2026-11-03', order_index: 0 }),
+  ];
+  assert.equal(previousPin(pins, 1), null);
+  assert.equal(previousPin(pins, 2)?.id, 1);
+  assert.equal(previousPin(pins, 3)?.id, 2);
+  assert.equal(previousPin(pins, 99), null);
+});
+
+test('the connector joins placed pins in trip order and breaks at unplaced ones', () => {
+  const pins = [
+    pin({ id: 4, day_date: '2026-11-04', order_index: 1, lat: 4, lng: 40 }),
+    pin({ id: 3, day_date: '2026-11-04', order_index: 0, lat: 3, lng: 30 }),
+    pin({ id: 2, day_date: '2026-11-03', order_index: 1 }), // not on the map
+    pin({ id: 1, day_date: '2026-11-03', order_index: 0, lat: 1, lng: 10 }),
+    pin({ id: 0, day_date: '2026-11-02', order_index: 0, lat: 0, lng: 0 }),
+  ];
+  assert.deepEqual(connectorSegments(pins), [
+    [[0, 0], [10, 1]], // across days
+    [[30, 3], [40, 4]], // 1 -> 2 and 2 -> 3 skipped, never 1 -> 3
+  ]);
+  assert.deepEqual(connectorSegments([pins[0]]), []);
 });

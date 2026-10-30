@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { color, radius } from '../../theme';
+import { color, radius, shadow, type } from '../../theme';
 
 interface Props {
   number: number;
@@ -13,7 +13,7 @@ interface Props {
 export function NumberedPin({ number, selected = false }: Props) {
   return (
     <View style={[styles.pin, selected && styles.pinSelected]}>
-      <Text style={[styles.number, selected && styles.numberSelected]}>{number}</Text>
+      <Text style={styles.number}>{number}</Text>
     </View>
   );
 }
@@ -30,16 +30,11 @@ const styles = StyleSheet.create({
     borderColor: color.onLacquer,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadow.pin,
   },
   pinSelected: {
     backgroundColor: color.ink,
     transform: [{ scale: 1.15 }],
   },
-  number: {
-    color: color.onLacquer,
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 17,
-  },
-  numberSelected: { color: color.onLacquer },
+  number: { ...type.numeral, color: color.onLacquer },
 });

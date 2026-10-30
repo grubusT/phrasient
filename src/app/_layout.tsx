@@ -33,6 +33,18 @@ export default function RootLayout() {
               options={{ presentation: 'fullScreenModal' }}
             />
             <Stack.Screen
+              name="phrase/[languageCode]/[phraseId]"
+              options={{ presentation: 'fullScreenModal' }}
+            />
+            <Stack.Screen
+              name="pin/[pinId]/edit"
+              options={{ ...modalHeader, presentation: 'modal', title: 'Edit pin' }}
+            />
+            <Stack.Screen
+              name="search"
+              options={{ ...modalHeader, presentation: 'modal', title: 'Search phrases' }}
+            />
+            <Stack.Screen
               name="add-pin/index"
               options={{ ...modalHeader, presentation: 'modal', title: 'Add a pin' }}
             />
