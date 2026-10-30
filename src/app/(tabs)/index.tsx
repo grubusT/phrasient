@@ -1,47 +1,67 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Camera, Map, Marker } from '@maplibre/maplibre-react-native';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Camera, Map, Marker, type CameraRef } from '@maplibre/maplibre-react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { listPinsForTrip } from '../../db/pins';
+import { listPinsForTrip, movePin } from '../../db/pins';
 import { listTrips } from '../../db/trips';
 import type { Pin, Trip } from '../../db/types';
 import { ONLINE_STYLE_URL } from '../../map/style';
 import { NumberedPin } from '../../components/map/NumberedPin';
-import { groupPinsByDay, pickActiveTrip, pinBounds, tripOrderNumbers } from '../../lib/trip';
-import { formatDisplayDate } from '../../lib/date';
+import { TripSheet } from '../../components/sheet/TripSheet';
+import { applyMove, pickActiveTrip, pinBounds, tripOrderNumbers } from '../../lib/trip';
 import { color, radius, space, type } from '../../theme';
-
-const SNAP_POINTS = ['14%', '45%', '92%'];
 
 export default function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const sheet = useRef<BottomSheet>(null);
+  const { height } = useWindowDimensions();
+  const camera = useRef<CameraRef>(null);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [pins, setPins] = useState<Pin[]>([]);
   const [selectedPinId, setSelectedPinId] = useState<number | null>(null);
 
+  const load = useCallback(async () => {
+    const active = pickActiveTrip(await listTrips());
+    return { active, pins: active ? await listPinsForTrip(active.id) : [] };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listTrips().then(async (trips) => {
-        const active = pickActiveTrip(trips);
+      load().then((result) => {
         if (cancelled) return;
-        setTrip(active);
-        setPins(active ? await listPinsForTrip(active.id) : []);
+        setTrip(result.active);
+        setPins(result.pins);
       });
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, [load])
   );
 
   const numbers = useMemo(() => tripOrderNumbers(pins), [pins]);
-  const days = useMemo(() => groupPinsByDay(pins), [pins]);
   const placed = useMemo(() => pins.filter((p) => p.lat !== null && p.lng !== null), [pins]);
   const bounds = useMemo(() => pinBounds(pins), [pins]);
+
+  const onSelectPin = useCallback(
+    (pin: Pin) => {
+      setSelectedPinId(pin.id);
+      if (pin.lat === null || pin.lng === null) return;
+      // Centre the pin in the map left visible above the sheet at its half snap.
+      camera.current?.flyTo({ center: [pin.lng, pin.lat], padding: { bottom: height / 2 }, duration: 600 });
+    },
+    [height]
+  );
+
+  const onMovePin = useCallback(
+    (pinId: number, day: string, index: number) => {
+      // Show the drop immediately; the list would otherwise snap back until SQLite answers.
+      setPins((current) => applyMove(current, pinId, day, index));
+      movePin(pinId, day, index).catch(() => load().then((result) => setPins(result.pins)));
+    },
+    [load]
+  );
 
   return (
     <View style={styles.root}>
@@ -56,13 +76,19 @@ export default function MapScreen() {
         }}
       >
         <Camera
+          ref={camera}
           initialViewState={
             bounds ? { bounds } : { center: [105.8342, 21.0278], zoom: 11 }
           }
         />
         {placed.map((pin) => (
           <Marker key={pin.id} id={String(pin.id)} lngLat={[pin.lng!, pin.lat!]}>
-            <Pressable onPress={() => setSelectedPinId(pin.id)} hitSlop={8}>
+            <Pressable
+              onPress={() => setSelectedPinId(pin.id)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`${numbers.get(pin.id) ?? ''}. ${pin.display_name}`}
+            >
               <NumberedPin number={numbers.get(pin.id) ?? 0} selected={selectedPinId === pin.id} />
             </Pressable>
           </Marker>
@@ -86,49 +112,18 @@ export default function MapScreen() {
         </Pressable>
       )}
 
-      <BottomSheet
-        ref={sheet}
-        index={0}
-        snapPoints={SNAP_POINTS}
-        backgroundStyle={styles.sheetBackground}
-        handleIndicatorStyle={styles.sheetHandle}
-      >
-        <BottomSheetScrollView contentContainerStyle={styles.sheetContent}>
-          {trip === null ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>No trips yet</Text>
-              <Text style={styles.emptyBody}>Create a trip to start dropping pins.</Text>
-              <Pressable style={styles.action} onPress={() => router.push('/trips')}>
-                <Text style={styles.actionText}>Go to Trips</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.tripName}>{trip.name}</Text>
-              {days.map((day) => (
-                <View key={day.date} style={styles.day}>
-                  <Text style={styles.dayDate}>{formatDisplayDate(day.date)}</Text>
-                  {day.pins.map((pin) => (
-                    <View key={pin.id} style={styles.pinRow}>
-                      <NumberedPin number={numbers.get(pin.id) ?? 0} />
-                      <View style={styles.pinText}>
-                        <Text style={styles.pinName}>{pin.display_name}</Text>
-                        {pin.official_name && (
-                          <Text style={styles.pinScript}>{pin.official_name}</Text>
-                        )}
-                      </View>
-                      {pin.lat === null && <Text style={styles.unplaced}>Not on the map</Text>}
-                    </View>
-                  ))}
-                </View>
-              ))}
-              {pins.length === 0 && (
-                <Text style={styles.emptyBody}>This trip has no pins yet.</Text>
-              )}
-            </>
-          )}
-        </BottomSheetScrollView>
-      </BottomSheet>
+      <TripSheet
+        trip={trip}
+        pins={pins}
+        numbers={numbers}
+        selectedPinId={selectedPinId}
+        onSelectPin={onSelectPin}
+        onMovePin={onMovePin}
+        onFindOnMap={(pin) =>
+          router.push({ pathname: '/add-pin', params: { tripId: pin.trip_id, pinId: pin.id } })
+        }
+        onGoToTrips={() => router.push('/trips')}
+      />
     </View>
   );
 }
@@ -145,26 +140,4 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
   },
   addButtonText: { ...type.body, color: color.ink },
-  sheetBackground: { backgroundColor: color.paper },
-  sheetHandle: { backgroundColor: color.hairline, width: 36 },
-  sheetContent: { paddingHorizontal: space.lg, paddingBottom: space.xxl, gap: space.md },
-  tripName: { ...type.title, color: color.ink },
-  day: { gap: space.sm },
-  dayDate: { ...type.caption, color: color.muted, marginTop: space.sm },
-  pinRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  pinText: { flex: 1 },
-  pinName: { ...type.body, color: color.ink },
-  pinScript: { ...type.script, color: color.ink },
-  unplaced: { ...type.caption, color: color.muted },
-  empty: { alignItems: 'center', gap: space.sm, paddingVertical: space.xl },
-  emptyTitle: { ...type.title, color: color.ink },
-  emptyBody: { ...type.caption, color: color.muted, textAlign: 'center' },
-  action: {
-    marginTop: space.sm,
-    backgroundColor: color.ink,
-    borderRadius: radius.sm,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-  },
-  actionText: { ...type.body, color: color.paper },
 });

@@ -155,6 +155,28 @@ v11 is new-architecture only. Check
 `node_modules/@maplibre/maplibre-react-native/lib/typescript/module/index.d.ts`
 before writing map code.
 
+## Sheet
+
+**A move has one definition: `applyMove` in `src/lib/trip.ts`.** The sheet applies
+it before SQLite answers (otherwise a dropped row snaps back for a frame) and
+`movePin` writes exactly what it returns. Two implementations of the same
+reorder would drift; this way the tested function is the one that persists.
+
+**The sheet list is flat, with day headers as rows.** Dragging a pin past a
+header is what moves it to another day; `dropTarget` reads the nearest header
+above the drop. Empty days, including one after the last pinned day, are listed
+so there is somewhere to drop. Headers never start a drag.
+
+**Drag inside the bottom sheet is the fragile part.** The list renders through
+`useBottomSheetScrollableCreator` so the sheet and the list share scrolling, and
+`enableContentPanningGesture` is turned off while a pin is dragged so the sheet
+does not move with it. Drag is long-press only, so a plain swipe still scrolls.
+Screen readers get "Move earlier" / "Move later" actions doing the same one-row
+move, since drag is not accessible.
+
+**Tapping a marker does not snap the sheet.** The peek card already shows the
+selected pin; raising the sheet would cover the map the user just tapped.
+
 ## Design
 
 **`src/theme.ts` is the only source of colour, type scale, spacing and radius.**

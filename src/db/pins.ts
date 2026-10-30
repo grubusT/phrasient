@@ -1,4 +1,5 @@
 import { getDb } from './client';
+import { applyMove } from '../lib/trip';
 import type { Pin, PinSource, StopType } from './types';
 
 export interface NewPinInput {
@@ -147,6 +148,8 @@ export async function deletePin(pinId: number): Promise<void> {
  *
  * `targetIndex` is the position in the destination day *after* the pin has been
  * taken out of its original place, which is the index drag-and-drop reports.
+ * The new order comes from `applyMove`, the same function the sheet uses to
+ * show the move before this resolves, so the two cannot disagree.
  */
 export async function movePin(pinId: number, targetDay: string, targetIndex: number): Promise<void> {
   const db = await getDb();
@@ -154,26 +157,17 @@ export async function movePin(pinId: number, targetDay: string, targetIndex: num
     const pin = await db.getFirstAsync<Pin>('SELECT * FROM pins WHERE id = ?', pinId);
     if (!pin) return;
 
-    // Close the gap the pin leaves behind.
-    await db.runAsync(
-      'UPDATE pins SET order_index = order_index - 1 WHERE trip_id = ? AND day_date = ? AND order_index > ?',
-      pin.trip_id,
-      pin.day_date,
-      pin.order_index
-    );
-    // Open a gap at the destination.
-    await db.runAsync(
-      'UPDATE pins SET order_index = order_index + 1 WHERE trip_id = ? AND day_date = ? AND order_index >= ? AND id != ?',
-      pin.trip_id,
-      targetDay,
-      targetIndex,
-      pinId
-    );
-    await db.runAsync(
-      'UPDATE pins SET day_date = ?, order_index = ? WHERE id = ?',
-      targetDay,
-      targetIndex,
-      pinId
-    );
+    const before = await db.getAllAsync<Pin>('SELECT * FROM pins WHERE trip_id = ?', pin.trip_id);
+    const after = applyMove(before, pinId, targetDay, targetIndex);
+    for (const [i, p] of after.entries()) {
+      const old = before[i];
+      if (p.day_date === old.day_date && p.order_index === old.order_index) continue;
+      await db.runAsync(
+        'UPDATE pins SET day_date = ?, order_index = ? WHERE id = ?',
+        p.day_date,
+        p.order_index,
+        p.id
+      );
+    }
   });
 }

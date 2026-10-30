@@ -1,3 +1,49 @@
+# Phase 3: Sheet with pin list
+
+Spec: `~/.claude/plans/quiet-dazzling-candle.md` (Phase 3, Screens and components). Reasons: `docs/decisions.md`.
+
+## Plan
+
+### Pure logic (tested under `node --test`)
+- [x] `src/lib/trip.ts`: `applyMove(pins, pinId, targetDay, targetIndex)`, the single definition of a move, used by the optimistic UI and by `movePin`
+- [x] `sheetRows(trip, pins)`: flat list of day headers and pins, empty days included so a pin can be dragged onto them
+- [x] `dropTarget(rows, from, to)`: turns a drag between flat rows into `(day, index)` via the nearest header above
+- [x] `movePin` reads the trip, runs `applyMove`, writes only changed rows in one transaction. Contract unchanged.
+
+### Sheet (`src/components/sheet/`)
+- [x] `TripSheet`: three snaps (peek sized to the measured peek card, 50%, 92%), lifted out of the map screen
+- [x] `PeekCard`: selected pin, else `currentOrNextPin` by the clock
+- [x] Day headers + `PinRow`; empty days say "Nothing planned"
+- [x] Unplaced pins stay in their day with "Not on the map yet" and a "Find on map" button to `/add-pin?pinId=`
+- [x] Drag and drop (your call over up/down buttons): long-press a row, drag past day headers to change day. `react-native-reorderable-list` rendered through `useBottomSheetScrollableCreator`; sheet panning is off while dragging
+- [x] Screen-reader actions "Move earlier" / "Move later" do the same move one row at a time, since drag is not accessible
+
+### Map and sheet
+- [x] Tap a marker: selects it and the peek card shows it (no snap; the peek already shows the pin, and snapping would hide the map)
+- [x] Tap a row: selects it and flies the camera there, padded so it lands above the half sheet
+- [x] Markers renumber as soon as a pin is dropped
+
+### Not in this phase
+- Dashed connector (Phase 7), move rows (Phase 5), pin detail on row tap (Phase 4)
+
+### Verify
+- [x] Tests: moves within a day, across days, onto an empty day, past the end; sheet rows with gaps and pre-start pins; drop targets within a day, across headers, onto the trailing empty day, above the first header; headers not draggable; drop target + move round trip
+- [x] `npm test` (65 pass, 12 new), both typechecks, `npx expo lint`, `npx expo-doctor` 20/20, `npx expo export --platform ios`
+- [ ] Not verifiable by me: drag inside the sheet, snaps, camera fly, airplane mode (needs a dev build)
+
+## Review
+
+Done 30 Oct 2026, pending device check.
+
+Changed from the plan:
+- Drag and drop replaced the up/down reorder mode.
+- `movePin` now computes the order with `applyMove` instead of three shifting UPDATEs, so the SQL and the instant UI cannot drift. Its SQL is still untested directly (the db module imports expo-sqlite), but the logic it runs is.
+- No snap to half on marker tap (see above).
+
+Biggest risk: drag inside a scrolling `@gorhom/bottom-sheet` is a known gesture-conflict area. If dragging fights the sheet on device, the fallback is the accessibility step actions surfaced as visible buttons.
+
+New dependency: `react-native-reorderable-list` 0.18 (Reanimated-based drag for FlatList; no drag-and-drop exists in the current deps). Its typings reference RNGH 2 type names that RNGH 3 renamed; harmless under `skipLibCheck`, runtime APIs (`Gesture`, `GestureDetector`) are unchanged.
+
 # Phase 2: Places pin adding
 
 Spec: `~/.claude/plans/quiet-dazzling-candle.md` (PlaceSearch section). Reasons: `docs/decisions.md` (Places).

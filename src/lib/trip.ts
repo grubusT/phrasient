@@ -103,3 +103,78 @@ export function pinBounds(pins: Pin[], padding = 0.01): Bounds | null {
     Math.max(...lats) + padding,
   ];
 }
+
+/**
+ * Moves a pin within its day or to another day and returns the trip's pins with
+ * dense 0-based order within every day. Mirrors `movePin` in `src/db/pins.ts`:
+ * `targetIndex` is the position in the target day after the pin is taken out.
+ */
+export function applyMove(pins: Pin[], pinId: number, targetDay: string, targetIndex: number): Pin[] {
+  const moving = pins.find((p) => p.id === pinId);
+  if (!moving) return pins;
+
+  const target = groupPinsByDay(pins.filter((p) => p.id !== pinId)).find((d) => d.date === targetDay);
+  const targetPins = target ? [...target.pins] : [];
+  const index = Math.max(0, Math.min(targetIndex, targetPins.length));
+  targetPins.splice(index, 0, { ...moving, day_date: targetDay });
+
+  const reordered = new Map<number, Pin>();
+  targetPins.forEach((p, i) => reordered.set(p.id, { ...p, order_index: i }));
+  if (moving.day_date !== targetDay) {
+    const source = groupPinsByDay(pins).find((d) => d.date === moving.day_date)!;
+    source.pins
+      .filter((p) => p.id !== pinId)
+      .forEach((p, i) => reordered.set(p.id, { ...p, order_index: i }));
+  }
+  return pins.map((p) => reordered.get(p.id) ?? p);
+}
+
+/** A row in the sheet's day list. Day headers are rows too, so a pin can be dragged past them. */
+export type SheetRow =
+  | { kind: 'day'; date: string; dayNumber: number; empty: boolean }
+  | { kind: 'pin'; pin: Pin };
+
+/**
+ * The sheet's flat list: every trip day, empty ones included so a pin can be
+ * dragged onto them, each followed by its pins. Pins on a day outside
+ * `tripDays` (before the start date) still get a header rather than vanishing.
+ */
+export function sheetRows(trip: Trip, pins: Pin[], today = todayISO()): SheetRow[] {
+  const byDay = new Map(groupPinsByDay(pins).map((d) => [d.date, d.pins]));
+  const dates = [...new Set([...tripDays(trip, pins, today), ...byDay.keys()])].sort();
+
+  return dates.flatMap((date, i): SheetRow[] => {
+    const dayPins = byDay.get(date) ?? [];
+    return [
+      { kind: 'day', date, dayNumber: i + 1, empty: dayPins.length === 0 },
+      ...dayPins.map((pin) => ({ kind: 'pin' as const, pin })),
+    ];
+  });
+}
+
+/**
+ * Where a drag from row `from` to row `to` puts the pin: the day of the nearest
+ * header above it and its position among that day's pins. A pin dropped above
+ * every header lands first on the first day. Null when the dragged row is not a pin.
+ */
+export function dropTarget(
+  rows: SheetRow[],
+  from: number,
+  to: number
+): { pinId: number; day: string; index: number } | null {
+  const dragged = rows[from];
+  if (!dragged || dragged.kind !== 'pin') return null;
+
+  const after = [...rows];
+  after.splice(from, 1);
+  after.splice(to, 0, dragged);
+
+  let index = 0;
+  for (let i = to - 1; i >= 0; i--) {
+    const row = after[i];
+    if (row.kind === 'day') return { pinId: dragged.pin.id, day: row.date, index };
+    index++;
+  }
+  const firstDay = after.find((r) => r.kind === 'day');
+  return firstDay?.kind === 'day' ? { pinId: dragged.pin.id, day: firstDay.date, index: 0 } : null;
+}

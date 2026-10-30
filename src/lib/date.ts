@@ -25,3 +25,9 @@ export function formatDisplayDate(dateISO: string): string {
     day: 'numeric',
   });
 }
+
+/** Local wall-clock time as HH:MM, the format pin times are stored in. */
+export function nowHHMM(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
