@@ -24,7 +24,8 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-audio"
+      "expo-audio",
+      "@maplibre/maplibre-react-native"
     ]
   }
 }
