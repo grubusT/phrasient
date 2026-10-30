@@ -32,6 +32,14 @@ export default function RootLayout() {
               name="show-driver/[pinId]"
               options={{ presentation: 'fullScreenModal' }}
             />
+            <Stack.Screen
+              name="add-pin/index"
+              options={{ ...modalHeader, presentation: 'modal', title: 'Add a pin' }}
+            />
+            <Stack.Screen
+              name="add-pin/manual"
+              options={{ ...modalHeader, presentation: 'modal', title: 'Pin by hand' }}
+            />
           </Stack>
         ) : (
           <View style={styles.gate}>
@@ -49,6 +57,16 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// Native headers handle the status bar and sheet insets on both platforms, which
+// a hand-built header inside a modal gets wrong on one or the other.
+const modalHeader = {
+  headerShown: true,
+  headerShadowVisible: false,
+  headerStyle: { backgroundColor: color.paper },
+  headerTintColor: color.ink,
+  headerTitleStyle: { fontSize: type.body.fontSize, fontWeight: type.title.fontWeight },
+} as const;
 
 const styles = StyleSheet.create({
   root: { flex: 1 },

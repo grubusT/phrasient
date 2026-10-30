@@ -1,5 +1,5 @@
 import type { Pin, Trip } from '../db/types';
-import { todayISO } from './date';
+import { addDaysISO, todayISO } from './date';
 
 export interface Day {
   date: string;
@@ -33,6 +33,25 @@ export function tripOrderNumbers(pins: Pin[]): Map<number, number> {
     for (const pin of day.pins) numbers.set(pin.id, n++);
   }
   return numbers;
+}
+
+/**
+ * Days a new pin can go on: every day from the trip's start through its last
+ * pinned day, plus one more so the trip can grow. A trip with no start date
+ * starts today.
+ */
+export function tripDays(trip: Trip, pins: Pin[], today = todayISO()): string[] {
+  const start = trip.start_date ?? today;
+  const last = pins.reduce((max, p) => (p.day_date > max ? p.day_date : max), start);
+  const days = [start];
+  while (days[days.length - 1] <= last) days.push(addDaysISO(days[days.length - 1], 1));
+  return days;
+}
+
+/** New pins land on the last day that already has pins, else day 1. */
+export function defaultDayForNewPin(days: string[], pins: Pin[]): string {
+  const pinned = days.filter((d) => pins.some((p) => p.day_date === d));
+  return pinned[pinned.length - 1] ?? days[0];
 }
 
 /** The trip the map should open on: the one covering today, else the next one, else the last. */

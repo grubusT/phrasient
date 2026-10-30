@@ -90,6 +90,37 @@ hard version is budget + Pub/Sub → a function that disables billing. Client-si
 debounce, minimum query length, caching and the local daily counter are comfort,
 not enforcement. See `docs/google-places-setup.md`.
 
+**The fixture provider is the default; Google is opt-in by env.**
+`EXPO_PUBLIC_PLACES_PROVIDER=google` plus a key selects Google; anything else
+gets `FixturePlaceSearch`. Day-to-day work and tests then burn no quota. The
+fixture is written as Google-shaped payloads and goes through the same
+`toPlaceRecord`, so it tests the mapping rather than bypassing it.
+
+**The local daily counter lives in SQLite (`places_usage`, schema v3).** One
+database and one `src/db` access pattern, rather than a second store
+(`expo-sqlite/kv-store`) the node tests cannot import. The count is taken
+*before* each network request and cache hits never count. It is a comfort guard;
+see the spend-cap note above for what actually stops a bill.
+
+**Every Places failure is a `PlacesError` with a kind:** `offline` (fetch threw),
+`timeout` (our 10 s timer fired), `quota` (HTTP 429 or the local counter),
+`denied` (401/403, usually key restrictions) and `unknown`. The message is the
+user-facing copy. A caller abort, which is a newer keystroke superseding an old
+request, is deliberately *not* converted, so the screen can ignore it instead of
+flashing "No connection". Offline and quota errors point the user at
+long-press, which needs no network.
+
+**Stop type: the provider's `primaryType` wins, then table order.** A hotel lists
+`restaurant` among its types, so a table-only match on "any type" depends on
+table order; `primaryType` is the place's declared purpose. Unmapped primaries
+(e.g. `vietnamese_restaurant`) fall through to the table. Raw types are stored on
+the pin either way.
+
+**Manual pins only offer countries we have a pack for.** `country_code` is NOT
+NULL and decides the language, and a hand-dropped pin has no provider to ask. A
+long-press outside China or Vietnam therefore has to pick one of the two; fix by
+adding packs, or by reverse-geocoding when that is worth a network call.
+
 ## Map and offline
 
 **Offline tiles come from OpenFreeMap, not a Protomaps planet.** The brief said

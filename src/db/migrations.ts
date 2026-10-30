@@ -162,7 +162,22 @@ const V2: Migration = {
   ],
 };
 
-export const MIGRATIONS: Migration[] = [V1, V2];
+/**
+ * v3: a local count of Places requests per calendar day. It is a comfort guard,
+ * not a spend cap — the real cap lives in Cloud Console quotas. See
+ * docs/google-places-setup.md.
+ */
+const V3: Migration = {
+  version: 3,
+  statements: [
+    `CREATE TABLE places_usage (
+      day TEXT PRIMARY KEY,
+      calls INTEGER NOT NULL
+    )`,
+  ],
+};
+
+export const MIGRATIONS: Migration[] = [V1, V2, V3];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 

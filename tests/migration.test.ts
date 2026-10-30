@@ -7,8 +7,10 @@ function apply(db: DatabaseSync, upTo: number) {
   // Matches src/db/client.ts, which opens every connection with foreign keys on.
   // Renaming a table that other tables reference behaves differently under it.
   db.exec('PRAGMA foreign_keys = ON');
+  // Like migrate(), skip what the database already has.
+  const current = (db.prepare('PRAGMA user_version').get() as any).user_version;
   for (const migration of MIGRATIONS) {
-    if (migration.version > upTo) continue;
+    if (migration.version <= current || migration.version > upTo) continue;
     for (const statement of migration.statements) db.exec(statement);
     db.exec(`PRAGMA user_version = ${migration.version}`);
   }
@@ -176,7 +178,7 @@ test('a fresh install reaches the same schema as a migrated one', () => {
 test('re-running migrations is a no-op', () => {
   const db = new DatabaseSync(':memory:');
   seedV1(db);
-  apply(db, 2);
+  apply(db, SCHEMA_VERSION);
   const before = (db.prepare(`SELECT COUNT(*) AS n FROM pins`).get() as any).n;
 
   // migrate() skips anything at or below user_version; prove the guard holds.
@@ -186,4 +188,24 @@ test('re-running migrations is a no-op', () => {
     assert.ok(migration.version <= version, 'nothing is left pending');
   }
   assert.equal((db.prepare(`SELECT COUNT(*) AS n FROM pins`).get() as any).n, before);
+});
+
+test('v2 to v3 keeps every pin, pinned phrase and cached place', () => {
+  const db = new DatabaseSync(':memory:');
+  seedV1(db);
+  apply(db, 2);
+  db.exec(`INSERT INTO pinned_phrases (language_code, phrase_id, created_at) VALUES ('vi', 'vi-food-01', '2026-02-01T00:00:00Z')`);
+  db.exec(`INSERT INTO place_details_cache (place_id, language_code, payload, fetched_at) VALUES ('abc', 'en', '{}', '2026-02-01T00:00:00Z')`);
+  const snapshot = () => ({
+    pins: db.prepare(`SELECT * FROM pins ORDER BY id`).all(),
+    pinned: db.prepare(`SELECT * FROM pinned_phrases ORDER BY id`).all(),
+    cache: db.prepare(`SELECT * FROM place_details_cache`).all(),
+    trips: db.prepare(`SELECT * FROM trips ORDER BY id`).all(),
+  });
+  const before = snapshot();
+
+  apply(db, 3);
+
+  assert.deepEqual(snapshot(), before);
+  assert.deepEqual(db.prepare(`SELECT * FROM places_usage`).all(), [], 'the counter starts empty');
 });

@@ -101,17 +101,26 @@ export async function setPinType(pinId: number, stopType: StopType): Promise<voi
 /** Used when a migrated pin is finally located on the map. */
 export async function setPinLocation(
   pinId: number,
-  location: { lat: number; lng: number; place_id: string | null; official_name?: string | null; official_address?: string | null }
+  location: {
+    lat: number;
+    lng: number;
+    place_id: string | null;
+    place_types?: string[] | null;
+    official_name?: string | null;
+    official_address?: string | null;
+  }
 ): Promise<void> {
   const db = await getDb();
   await db.runAsync(
     `UPDATE pins SET lat = ?, lng = ?, place_id = ?, source = 'google',
+       place_types = COALESCE(?, place_types),
        official_name = COALESCE(?, official_name),
        official_address = COALESCE(?, official_address)
      WHERE id = ?`,
     location.lat,
     location.lng,
     location.place_id,
+    location.place_types ? JSON.stringify(location.place_types) : null,
     location.official_name ?? null,
     location.official_address ?? null,
     pinId

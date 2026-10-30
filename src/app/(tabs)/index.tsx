@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Camera, Map, Marker } from '@maplibre/maplibre-react-native';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { listPinsForTrip } from '../../db/pins';
 import { listTrips } from '../../db/trips';
 import type { Pin, Trip } from '../../db/types';
@@ -16,6 +17,7 @@ const SNAP_POINTS = ['14%', '45%', '92%'];
 
 export default function MapScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const sheet = useRef<BottomSheet>(null);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [pins, setPins] = useState<Pin[]>([]);
@@ -43,7 +45,16 @@ export default function MapScreen() {
 
   return (
     <View style={styles.root}>
-      <Map style={styles.map} mapStyle={ONLINE_STYLE_URL} onPress={() => setSelectedPinId(null)}>
+      <Map
+        style={styles.map}
+        mapStyle={ONLINE_STYLE_URL}
+        onPress={() => setSelectedPinId(null)}
+        onLongPress={(e) => {
+          if (!trip) return;
+          const [lng, lat] = e.nativeEvent.lngLat;
+          router.push({ pathname: '/add-pin/manual', params: { tripId: trip.id, lat, lng } });
+        }}
+      >
         <Camera
           initialViewState={
             bounds ? { bounds } : { center: [105.8342, 21.0278], zoom: 11 }
@@ -57,6 +68,23 @@ export default function MapScreen() {
           </Marker>
         ))}
       </Map>
+
+      {trip && (
+        <Pressable
+          style={[styles.addButton, { top: insets.top + space.md }]}
+          onPress={() => {
+            // Bias search toward where the trip already is.
+            const center = bounds
+              ? { lng: (bounds[0] + bounds[2]) / 2, lat: (bounds[1] + bounds[3]) / 2 }
+              : {};
+            router.push({ pathname: '/add-pin', params: { tripId: trip.id, ...center } });
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Add a pin"
+        >
+          <Text style={styles.addButtonText}>Add pin</Text>
+        </Pressable>
+      )}
 
       <BottomSheet
         ref={sheet}
@@ -108,6 +136,15 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.wash },
   map: { flex: 1 },
+  addButton: {
+    position: 'absolute',
+    right: space.lg,
+    backgroundColor: color.paper,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+  },
+  addButtonText: { ...type.body, color: color.ink },
   sheetBackground: { backgroundColor: color.paper },
   sheetHandle: { backgroundColor: color.hairline, width: 36 },
   sheetContent: { paddingHorizontal: space.lg, paddingBottom: space.xxl, gap: space.md },

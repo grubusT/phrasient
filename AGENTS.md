@@ -34,7 +34,7 @@ than recalling the API.
 
 ```bash
 npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
-npm test                    # node --test over tests/ — migration, phrase rules, trip helpers
+npm test                    # node --test over tests/ — migration, phrase rules, trip helpers, places
 npx tsc --noEmit            # typecheck the app
 npx tsc --noEmit -p tests/tsconfig.json  # typecheck the tests (separate: they use Node types)
 npx expo lint               # lint

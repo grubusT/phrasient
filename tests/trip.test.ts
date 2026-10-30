@@ -2,9 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   currentOrNextPin,
+  defaultDayForNewPin,
   groupPinsByDay,
   pickActiveTrip,
   pinBounds,
+  tripDays,
   tripOrderNumbers,
 } from '../src/lib/trip.ts';
 import type { Pin, Trip } from '../src/db/types.ts';
@@ -103,4 +105,29 @@ test('bounds cover every placed pin and ignore unplaced ones', () => {
   );
   assert.deepEqual(bounds, [105.8, 21.0, 105.9, 21.1]);
   assert.equal(pinBounds([pin({ id: 9, day_date: '2026-11-03', order_index: 0 })]), null);
+});
+
+test('a new pin can go on any day through the last pinned one, plus one more', () => {
+  const pins = [pin({ id: 1, day_date: '2026-11-04', order_index: 0 })];
+  assert.deepEqual(tripDays(trip(1, '2026-11-02'), pins), [
+    '2026-11-02',
+    '2026-11-03',
+    '2026-11-04',
+    '2026-11-05',
+  ]);
+});
+
+test('an empty trip offers its first day and the next', () => {
+  assert.deepEqual(tripDays(trip(1, '2026-12-31'), []), ['2026-12-31', '2027-01-01']);
+  assert.deepEqual(tripDays(trip(1, null), [], '2026-10-30'), ['2026-10-30', '2026-10-31']);
+});
+
+test('new pins default to the last day that has pins', () => {
+  const days = ['2026-11-02', '2026-11-03', '2026-11-04'];
+  const pins = [
+    pin({ id: 1, day_date: '2026-11-02', order_index: 0 }),
+    pin({ id: 2, day_date: '2026-11-03', order_index: 0 }),
+  ];
+  assert.equal(defaultDayForNewPin(days, pins), '2026-11-03');
+  assert.equal(defaultDayForNewPin(days, []), '2026-11-02');
 });
