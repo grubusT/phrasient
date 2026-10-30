@@ -1,16 +1,18 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Camera, Map, Marker, type CameraRef } from '@maplibre/maplibre-react-native';
+import { Camera, GeoJSONSource, Layer, Map, Marker, type CameraRef } from '@maplibre/maplibre-react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { listPinsForTrip, movePin } from '../../db/pins';
 import { listTrips } from '../../db/trips';
 import type { Pin, Trip } from '../../db/types';
-import { ONLINE_STYLE_URL } from '../../map/style';
+import { buildStyle } from '../../map/style';
 import { NumberedPin } from '../../components/map/NumberedPin';
 import { TripSheet } from '../../components/sheet/TripSheet';
-import { applyMove, pickActiveTrip, pinBounds, tripOrderNumbers } from '../../lib/trip';
-import { color, radius, space, type } from '../../theme';
+import { applyMove, connectorSegments, pickActiveTrip, pinBounds, tripOrderNumbers } from '../../lib/trip';
+import { color, mapColor, motion, radius, space, type } from '../../theme';
+
+const MAP_STYLE = buildStyle();
 
 export default function MapScreen() {
   const router = useRouter();
@@ -43,13 +45,21 @@ export default function MapScreen() {
   const numbers = useMemo(() => tripOrderNumbers(pins), [pins]);
   const placed = useMemo(() => pins.filter((p) => p.lat !== null && p.lng !== null), [pins]);
   const bounds = useMemo(() => pinBounds(pins), [pins]);
+  const connector = useMemo<GeoJSON.Feature>(
+    () => ({
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'MultiLineString', coordinates: connectorSegments(pins) },
+    }),
+    [pins]
+  );
 
   const onSelectPin = useCallback(
     (pin: Pin) => {
       setSelectedPinId(pin.id);
       if (pin.lat === null || pin.lng === null) return;
       // Centre the pin in the map left visible above the sheet at its half snap.
-      camera.current?.flyTo({ center: [pin.lng, pin.lat], padding: { bottom: height / 2 }, duration: 600 });
+      camera.current?.flyTo({ center: [pin.lng, pin.lat], padding: { bottom: height / 2 }, duration: motion.cameraMs });
     },
     [height]
   );
@@ -67,7 +77,16 @@ export default function MapScreen() {
     <View style={styles.root}>
       <Map
         style={styles.map}
-        mapStyle={ONLINE_STYLE_URL}
+        mapStyle={MAP_STYLE}
+        // North up and flat: the map orients a trip, it does not navigate one,
+        // and without rotation there is no compass to find room for.
+        touchRotate={false}
+        touchPitch={false}
+        compass={false}
+        logo={false}
+        // The sheet covers the bottom, so the attribution sits top left.
+        attributionPosition={{ top: insets.top + space.md, left: space.lg }}
+        tintColor={color.muted}
         onPress={() => setSelectedPinId(null)}
         onLongPress={(e) => {
           if (!trip) return;
@@ -81,6 +100,19 @@ export default function MapScreen() {
             bounds ? { bounds } : { center: [105.8342, 21.0278], zoom: 11 }
           }
         />
+        <GeoJSONSource id="connector" data={connector}>
+          <Layer
+            id="connector"
+            type="line"
+            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            paint={{
+              'line-color': mapColor.connector,
+              'line-opacity': 0.4,
+              'line-width': 2,
+              'line-dasharray': [0, 2],
+            }}
+          />
+        </GeoJSONSource>
         {placed.map((pin) => (
           <Marker key={pin.id} id={String(pin.id)} lngLat={[pin.lng!, pin.lat!]}>
             <Pressable

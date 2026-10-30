@@ -188,3 +188,24 @@ export function previousPin(pins: Pin[], pinId: number): Pin | null {
   const i = ordered.findIndex((p) => p.id === pinId);
   return i > 0 ? ordered[i - 1] : null;
 }
+
+/**
+ * The map's connector: one straight segment per move whose two ends are both on
+ * the map, as `[lng, lat]` pairs. A move into or out of an unplaced pin draws
+ * nothing, rather than a line that skips it and suggests a move that is not in
+ * the trip. Straight on purpose: pins are joined by order, never by roads.
+ */
+export function connectorSegments(pins: Pin[]): [number, number][][] {
+  const ordered = groupPinsByDay(pins).flatMap((d) => d.pins);
+  const segments: [number, number][][] = [];
+  for (let i = 1; i < ordered.length; i++) {
+    const a = ordered[i - 1];
+    const b = ordered[i];
+    if (a.lat === null || a.lng === null || b.lat === null || b.lng === null) continue;
+    segments.push([
+      [a.lng, a.lat],
+      [b.lng, b.lat],
+    ]);
+  }
+  return segments;
+}

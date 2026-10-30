@@ -4,6 +4,7 @@ import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetView,
   useBottomSheetScrollableCreator,
+  useBottomSheetSpringConfigs,
 } from '@gorhom/bottom-sheet';
 import ReorderableList, { type ReorderableListReorderEvent } from 'react-native-reorderable-list';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -15,7 +16,7 @@ import { PinRow } from './PinRow';
 import { MoveRow } from './MoveRow';
 import { PinDetailView } from '../detail/PinDetailView';
 import { MoveCard } from '../detail/MoveCard';
-import { color, radius, space, type } from '../../theme';
+import { color, motion, radius, space, type } from '../../theme';
 
 interface Props {
   trip: Trip | null;
@@ -64,6 +65,7 @@ export function TripSheet({
     [peekHeight]
   );
   const renderScrollComponent = useBottomSheetScrollableCreator<ScrollViewProps>();
+  const animationConfigs = useBottomSheetSpringConfigs(motion.sheetSpring);
 
   const rows = useMemo(() => (trip ? sheetRows(trip, pins) : []), [trip, pins]);
   const dayNumbers = useMemo(
@@ -164,6 +166,7 @@ export function TripSheet({
       ref={sheet}
       index={0}
       snapPoints={snapPoints}
+      animationConfigs={animationConfigs}
       enableDynamicSizing={false}
       // While a pin is being dragged, vertical movement belongs to the list.
       enableContentPanningGesture={!dragging}

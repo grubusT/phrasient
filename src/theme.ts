@@ -22,6 +22,27 @@ export const color = {
 } as const;
 
 /**
+ * Basemap colours. Low contrast throughout: roads are a touch lighter than the
+ * land, labels a step quieter than the sheet's text, and nothing is saturated,
+ * so the lacquer pins are the first thing the eye finds.
+ */
+export const mapColor = {
+  land: color.wash,
+  water: color.water,
+  waterLabel: '#6F8A95',
+  park: '#DFE6DA',
+  building: '#E2E4DF',
+  road: color.paper,
+  rail: '#D3D6D0',
+  boundary: '#B9BDB6',
+  label: '#4C5157',
+  roadLabel: color.muted,
+  halo: color.paper,
+  /** The dotted line joining pins in trip order. */
+  connector: color.ink,
+} as const;
+
+/**
  * Type inverts the usual hierarchy: English is the caption, the local script is
  * the object being handed to someone. `script` and `driver` are the sizes that
  * matter — the rest stay quiet around them.
@@ -30,6 +51,8 @@ export const type = {
   caption: { fontSize: 13, lineHeight: 18 },
   body: { fontSize: 16, lineHeight: 22 },
   title: { fontSize: 20, lineHeight: 26, fontWeight: '600' },
+  /** The trip-order number inside a pin. */
+  numeral: { fontSize: 14, lineHeight: 17, fontWeight: '700' },
   /** Local-script phrase and place lines. Extra leading clears diacritic stacks. */
   script: { fontSize: 22, lineHeight: 32 },
   /** Held up for a stranger to read at arm's length. */
@@ -50,4 +73,28 @@ export const radius = {
   md: 12,
   lg: 20,
   pill: 999,
+} as const;
+
+/** The one elevation in the app: pins lifting off the map. */
+export const shadow = {
+  pin: {
+    shadowColor: color.ink,
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 3,
+  },
+} as const;
+
+/**
+ * The app's one orchestrated motion: the sheet settling on a snap point, with
+ * the camera moving alongside it when a pin is opened. The spring is just
+ * under critically damped, so a flick carries its speed in and settles without
+ * a bounce. The camera's duration is matched to how long the spring takes to
+ * come to rest, so the two land together. Under Reduce Motion, Reanimated
+ * skips the spring and the sheet jumps to its snap.
+ */
+export const motion = {
+  sheetSpring: { damping: 32, stiffness: 300, mass: 1 },
+  cameraMs: 450,
 } as const;
